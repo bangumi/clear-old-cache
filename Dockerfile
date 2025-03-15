@@ -1,5 +1,5 @@
 FROM gcr.io/distroless/base-debian11
 
-ENTRYPOINT ["/app/github-bot"]
+ENTRYPOINT ["/app/clear-old-cache"]
 
-COPY /dist/github-bot /app/github-bot
+COPY /dist/clear-old-cache /app/clear-old-cache
