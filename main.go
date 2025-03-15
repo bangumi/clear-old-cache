@@ -31,6 +31,7 @@ func main() {
 		msg, err := k.ReadMessage(ctx)
 
 		if err != nil {
+			log.Err(err).Msg("failed to read kafka message")
 			continue
 		}
 		var m KafkaMessageValue[ChiiInterest]
