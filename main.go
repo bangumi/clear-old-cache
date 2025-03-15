@@ -34,10 +34,15 @@ func main() {
 			log.Err(err).Msg("failed to read kafka message")
 			continue
 		}
+
+		if len(msg.Value) == 0 {
+			continue
+		}
+
 		var m KafkaMessageValue[ChiiInterest]
 		err = json.Unmarshal(msg.Value, &m)
 		if err != nil {
-			log.Err(err).Msg("failed to decode kafka message as json")
+			log.Err(err).Bytes("value", msg.Value).Msg("failed to decode kafka message as json")
 			continue
 		}
 
