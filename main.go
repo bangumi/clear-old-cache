@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
@@ -18,9 +19,12 @@ func main() {
 	zerolog.MessageFieldName = "msg"
 
 	k := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{os.Getenv("KAFKA_BROKERS")},
-		GroupID:     "clear-old-cache",
-		GroupTopics: []string{"debezium.chii.bangumi.chii_subject_interests"},
+		Brokers: []string{os.Getenv("KAFKA_BROKERS")},
+		GroupID: "clear-old-cache",
+		GroupTopics: []string{
+			"debezium.chii.bangumi.chii_subject_interests",
+			"debezium.chii.bangumi.chii_episodes",
+		},
 	})
 	mc := memcache.New(os.Getenv("MEMCACHED"))
 
@@ -39,19 +43,38 @@ func main() {
 			continue
 		}
 
-		var m KafkaMessageValue[ChiiInterest]
-		err = json.Unmarshal(msg.Value, &m)
-		if err != nil {
-			log.Err(err).Bytes("value", msg.Value).Msg("failed to decode kafka message as json")
+		if strings.HasSuffix(msg.Topic, ".chii_episodes") {
+			var m KafkaMessageValue[ChiiEpisode]
+			err = json.Unmarshal(msg.Value, &m)
+			if err != nil {
+				log.Err(err).Bytes("value", msg.Value).Msg("failed to decode kafka message as json")
+				continue
+			}
+
+			if (m.Op != OpUpdate) && (m.Op != OpCreate) {
+				continue
+			}
+
+			_ = mc.Delete(fmt.Sprintf("subject_eps_%d", m.After.SubjectID))
 			continue
 		}
 
-		if m.Op != OpUpdate {
+		if strings.HasSuffix(msg.Topic, ".chii_subject_interests") {
+			var m KafkaMessageValue[ChiiInterest]
+			err = json.Unmarshal(msg.Value, &m)
+			if err != nil {
+				log.Err(err).Bytes("value", msg.Value).Msg("failed to decode kafka message as json")
+				continue
+			}
+
+			if m.Op != OpUpdate {
+				continue
+			}
+
+			_ = mc.Delete(fmt.Sprintf("prg_ep_status_%d", m.After.InterestUID))
+			_ = mc.Delete(fmt.Sprintf("prg_watching_v3_%d", m.After.InterestUID))
 			continue
 		}
-
-		_ = mc.Delete(fmt.Sprintf("prg_ep_status_%d", m.After.InterestUID))
-		_ = mc.Delete(fmt.Sprintf("prg_watching_v3_%d", m.After.InterestUID))
 	}
 }
 
@@ -74,6 +97,10 @@ type KafkaMessageValue[T any] struct {
 	After  *T     `json:"after"`
 	Op     string `json:"op"`
 	Source Source `json:"source"`
+}
+
+type ChiiEpisode struct {
+	SubjectID uint64 `json:"ep_subject_id"`
 }
 
 type ChiiInterest struct {
