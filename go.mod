@@ -1,6 +1,6 @@
 module clear-old-cache
 
-go 1.24.9
+go 1.24.11
 
 require (
 	github.com/bradfitz/gomemcache v0.0.0-20230905024940-24af94b03874
